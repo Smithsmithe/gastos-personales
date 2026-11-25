@@ -1,6 +1,5 @@
 "use strict";
 
-const STORAGE_KEY = "gastosPersonales";
 const categoryOptions = [
   "Alimentación",
   "Aseo",
@@ -29,10 +28,14 @@ const emptyMessage = document.querySelector("#empty-message");
 const statusMessage = document.querySelector("#status-message");
 const categoryFilter = document.querySelector("#category-filter");
 
+let expenses = [];
+let databaseAvailable = false;
+
 function isExpense(value) {
   return (
     value !== null &&
     typeof value === "object" &&
+    Number.isInteger(value.id) &&
     typeof value.description === "string" &&
     value.description.trim() !== "" &&
     typeof value.amount === "number" &&
@@ -43,38 +46,34 @@ function isExpense(value) {
   );
 }
 
-function loadExpenses() {
-  try {
-    const savedExpenses = localStorage.getItem(STORAGE_KEY);
-    if (savedExpenses === null) {
-      return [];
-    }
-
-    const parsedExpenses = JSON.parse(savedExpenses);
-    if (!Array.isArray(parsedExpenses) || !parsedExpenses.every(isExpense)) {
-      throw new Error("Los datos guardados no tienen un formato válido.");
-    }
-
-    const normalizedExpenses = parsedExpenses.map((expense) =>
-      expense.category.toLocaleLowerCase("es-CO") === "casa"
-        ? { ...expense, category: "Casa" }
-        : expense,
-    );
-    if (normalizedExpenses.some((expense, index) => expense !== parsedExpenses[index])) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedExpenses));
-      } catch (error) {
-        statusMessage.textContent = `No se pudo actualizar la categoría guardada: ${error.message}`;
-      }
-    }
-    return normalizedExpenses;
-  } catch (error) {
-    statusMessage.textContent = `No se pudieron cargar los gastos guardados: ${error.message}`;
-    return [];
+async function request(path, options = {}) {
+  const response = await fetch(path, options);
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.error || `Error del servidor (${response.status}).`);
   }
+  if (response.status === 204) {
+    return null;
+  }
+  return response.json();
 }
 
-let expenses = loadExpenses();
+async function loadExpenses() {
+  try {
+    const savedExpenses = await request("/api/expenses");
+    if (!Array.isArray(savedExpenses) || !savedExpenses.every(isExpense)) {
+      throw new Error("Los datos recibidos no tienen un formato válido.");
+    }
+
+    expenses = savedExpenses;
+    databaseAvailable = true;
+    statusMessage.textContent = "";
+  } catch (error) {
+    databaseAvailable = false;
+    statusMessage.textContent = `No se pudieron cargar los gastos: ${error.message}`;
+  }
+  renderExpenses();
+}
 
 function displayDate(date) {
   const [year, month, day] = date.split("-").map(Number);
@@ -109,7 +108,7 @@ function renderExpenses() {
   expenseList.replaceChildren();
   let total = 0;
 
-  expenses.forEach((expense, index) => {
+  expenses.forEach((expense) => {
     total += expense.amount;
 
     if (categoryFilter.value && expense.category !== categoryFilter.value) {
@@ -142,7 +141,7 @@ function renderExpenses() {
     deleteButton.type = "button";
     deleteButton.textContent = "Eliminar";
     deleteButton.setAttribute("aria-label", `Eliminar gasto: ${expense.description}`);
-    deleteButton.addEventListener("click", () => deleteExpense(index));
+    deleteButton.addEventListener("click", () => deleteExpense(expense.id));
 
     details.append(description, meta);
     actions.append(amount, deleteButton);
@@ -151,31 +150,28 @@ function renderExpenses() {
   });
 
   totalAmount.textContent = currencyFormatter.format(total);
-  emptyMessage.textContent = expenses.length === 0
-    ? "Aún no hay gastos registrados."
-    : "No hay gastos en esta categoría.";
+  emptyMessage.textContent = !databaseAvailable
+    ? "No se pudo conectar con la base de datos."
+    : expenses.length === 0
+      ? "Aún no hay gastos registrados."
+      : "No hay gastos en esta categoría.";
   emptyMessage.hidden = expenseList.childElementCount > 0;
 }
 
-function saveExpenses(updatedExpenses) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedExpenses));
-  expenses = updatedExpenses;
+async function deleteExpense(id) {
   statusMessage.textContent = "";
-  renderExpenses();
-}
-
-function deleteExpense(index) {
-  const updatedExpenses = expenses.filter((_, expenseIndex) => expenseIndex !== index);
   try {
-    saveExpenses(updatedExpenses);
+    await request(`/api/expenses/${id}`, { method: "DELETE" });
+    expenses = expenses.filter((expense) => expense.id !== id);
+    renderExpenses();
   } catch (error) {
-    statusMessage.textContent = `No se pudo guardar el cambio: ${error.message}`;
+    statusMessage.textContent = `No se pudo eliminar el gasto: ${error.message}`;
   }
 }
 
 categoryFilter.addEventListener("change", renderExpenses);
 
-form.addEventListener("submit", (event) => {
+form.addEventListener("submit", async (event) => {
   event.preventDefault();
   statusMessage.textContent = "";
 
@@ -202,9 +198,18 @@ form.addEventListener("submit", (event) => {
     return;
   }
 
-  const updatedExpenses = [...expenses, { description, amount, category, date }];
   try {
-    saveExpenses(updatedExpenses);
+    const expense = await request("/api/expenses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description, amount, category, date }),
+    });
+    if (!isExpense(expense)) {
+      throw new Error("El servidor devolvió un gasto con formato inválido.");
+    }
+    expenses.push(expense);
+    databaseAvailable = true;
+    renderExpenses();
     form.reset();
     form.elements.description.focus();
   } catch (error) {
@@ -212,4 +217,4 @@ form.addEventListener("submit", (event) => {
   }
 });
 
-renderExpenses();
+loadExpenses();

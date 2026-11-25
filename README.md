@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 💰 Gastos Personales
 
 Aplicación web sencilla para registrar y consultar gastos personales, desarrollada con HTML, CSS y JavaScript.
@@ -85,3 +86,23 @@ El desarrollo se realizó mediante instrucciones en lenguaje natural dirigidas a
 ## 📄 Licencia
 
 Proyecto académico. No se ha especificado una licencia de distribución.
+=======
+# Gastos personales
+
+Aplicación local para registrar gastos en una base de datos SQLite persistente.
+
+## Iniciar la aplicación
+
+Se necesita Node.js 22.13 o posterior. No se requieren paquetes externos.
+
+```powershell
+node server.js
+```
+
+Abre <http://127.0.0.1:8000> en el navegador. No abras `index.html` directamente:
+la interfaz usa el servidor local para consultar y guardar los datos.
+
+La base de datos `gastos.db` se crea automáticamente junto a `server.js` y
+permanece entre reinicios. Para guardarla en otra ubicación, define la variable
+de entorno `GASTOS_DB_PATH` antes de iniciar el servidor.
+>>>>>>> 1a4c107 (Final)
