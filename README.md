@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # 💰 Gastos Personales
 
 Aplicación web sencilla para registrar y consultar gastos personales, desarrollada con HTML, CSS y JavaScript.
