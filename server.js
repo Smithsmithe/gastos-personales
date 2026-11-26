@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
+const { RequestValidationError, validateExpense } = require("./expense-validation");
 
 const appDirectory = __dirname;
 const databasePath = path.resolve(
@@ -17,8 +18,6 @@ const staticFiles = new Map([
   ["/script.js", ["script.js", "text/javascript; charset=utf-8"]],
   ["/styles.css", ["styles.css", "text/css; charset=utf-8"]],
 ]);
-
-class RequestValidationError extends Error {}
 
 fs.mkdirSync(path.dirname(databasePath), { recursive: true });
 const database = new DatabaseSync(databasePath);
@@ -66,34 +65,6 @@ function readJson(request) {
     });
     request.on("error", reject);
   });
-}
-
-function validateExpense(expense) {
-  if (!expense || typeof expense !== "object" || Array.isArray(expense)) {
-    throw new RequestValidationError("El cuerpo debe ser un objeto JSON.");
-  }
-  if (typeof expense.description !== "string" || !expense.description.trim()) {
-    throw new RequestValidationError("La descripción es obligatoria.");
-  }
-  if (
-    typeof expense.amount !== "number" ||
-    !Number.isFinite(expense.amount) ||
-    expense.amount <= 0
-  ) {
-    throw new RequestValidationError("El valor debe ser un número mayor que cero.");
-  }
-  if (typeof expense.category !== "string" || !expense.category.trim()) {
-    throw new RequestValidationError("La categoría es obligatoria.");
-  }
-  const parsedDate = new Date(`${expense.date}T00:00:00.000Z`);
-  if (
-    typeof expense.date !== "string" ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(expense.date) ||
-    Number.isNaN(parsedDate.getTime()) ||
-    parsedDate.toISOString().slice(0, 10) !== expense.date
-  ) {
-    throw new RequestValidationError("La fecha no es válida.");
-  }
 }
 
 function sendStaticFile(response, file, contentType) {

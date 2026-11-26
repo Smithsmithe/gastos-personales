@@ -1,3 +1,7 @@
 gastos.db
 gastos.db-shm
 gastos.db-wal
+node_modules/
+coverage/
+playwright-report/
+test-results/
